@@ -43,19 +43,25 @@ export async function POST(request: NextRequest) {
   // Single serialized read-modify-write so two devices racing on the same fresh
   // code can't both activate it.
   let outcome: Outcome | null = null;
-  const record = await updateRecord(codeHash, (r) => {
-    if (!r.activated) {
-      r.activated = true;
-      r.status = "used";
-      r.deviceHash = deviceHash;
-      r.activationDate = new Date().toISOString();
-      outcome = "activated";
-    } else if (r.deviceHash === deviceHash) {
-      outcome = "same-device";
-    } else {
-      outcome = "other-device";
-    }
-  });
+  let record: Awaited<ReturnType<typeof updateRecord>>;
+  try {
+    record = await updateRecord(codeHash, (r) => {
+      if (!r.activated) {
+        r.activated = true;
+        r.status = "used";
+        r.deviceHash = deviceHash;
+        r.activationDate = new Date().toISOString();
+        outcome = "activated";
+      } else if (r.deviceHash === deviceHash) {
+        outcome = "same-device";
+      } else {
+        outcome = "other-device";
+      }
+    });
+  } catch {
+    // e.g. the store file couldn't be written (read-only deployment).
+    return NextResponse.json({ error: "generic" }, { status: 500 });
+  }
 
   // No such code.
   if (record === null || outcome === null) {
