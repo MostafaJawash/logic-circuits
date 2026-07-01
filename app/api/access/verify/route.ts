@@ -8,12 +8,10 @@ import {
   hashFingerprint,
   createSessionToken,
 } from "@/lib/access/crypto";
-import { updateRecord } from "@/lib/access/store";
+import { isValidCodeHash, activateOrGet } from "@/lib/access/store";
 
-// Reads/writes the JSON store, so this must run on the Node.js runtime.
+// Talks to Redis over REST and uses Node crypto; run on the Node.js runtime.
 export const runtime = "nodejs";
-
-type Outcome = "activated" | "same-device" | "other-device";
 
 export async function POST(request: NextRequest) {
   let body: { code?: unknown; fingerprint?: unknown };
@@ -40,36 +38,22 @@ export async function POST(request: NextRequest) {
   const codeHash = hashCode(code);
   const deviceHash = hashFingerprint(fingerprint);
 
-  // Single serialized read-modify-write so two devices racing on the same fresh
-  // code can't both activate it.
-  let outcome: Outcome | null = null;
-  let record: Awaited<ReturnType<typeof updateRecord>>;
-  try {
-    record = await updateRecord(codeHash, (r) => {
-      if (!r.activated) {
-        r.activated = true;
-        r.status = "used";
-        r.deviceHash = deviceHash;
-        r.activationDate = new Date().toISOString();
-        outcome = "activated";
-      } else if (r.deviceHash === deviceHash) {
-        outcome = "same-device";
-      } else {
-        outcome = "other-device";
-      }
-    });
-  } catch {
-    // e.g. the store file couldn't be written (read-only deployment).
-    return NextResponse.json({ error: "generic" }, { status: 500 });
-  }
-
-  // No such code.
-  if (record === null || outcome === null) {
+  // Unknown code.
+  if (!isValidCodeHash(codeHash)) {
     return NextResponse.json({ error: "invalid" }, { status: 401 });
   }
 
-  // Code is already bound to a different device.
-  if (outcome === "other-device") {
+  // Atomically bind on first use; otherwise read the existing binding.
+  let record: Awaited<ReturnType<typeof activateOrGet>>;
+  try {
+    record = await activateOrGet(codeHash, deviceHash);
+  } catch {
+    // e.g. Redis is unreachable / not configured.
+    return NextResponse.json({ error: "generic" }, { status: 500 });
+  }
+
+  // Bound to a different device.
+  if (!record.justActivated && record.record.deviceHash !== deviceHash) {
     return NextResponse.json({ error: "device" }, { status: 403 });
   }
 

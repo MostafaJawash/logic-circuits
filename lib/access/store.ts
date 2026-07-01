@@ -1,74 +1,96 @@
-import { readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { Redis } from "@upstash/redis";
+import codesData from "@/data/accessCodes.json";
 
 /**
- * File-backed store for access codes. Codes are persisted as peppered hashes —
- * never in plaintext — in `data/accessCodes.json`.
+ * Access-code store.
+ *
+ * Split into two layers so it works on serverless platforms (Vercel) where the
+ * filesystem is read-only and ephemeral:
+ *
+ *  1. The set of VALID code hashes is static and ships bundled in
+ *     `data/accessCodes.json` (imported, not read via `fs`, so it's always
+ *     available at runtime). It contains only peppered hashes — no plaintext.
+ *
+ *  2. The MUTABLE per-code activation state (which device claimed it, when) lives
+ *     in Upstash Redis, keyed by the code hash. This is what needs to persist
+ *     across serverless invocations.
  */
 
-export interface AccessCodeRecord {
-  /** Peppered HMAC of the code (see `hashCode`). The lookup key. */
-  codeHash: string;
-  /** "available" until first used, then "used". */
-  status: "available" | "used";
-  /** Whether the code has been bound to a device yet. */
-  activated: boolean;
-  /** Peppered hash of the bound device fingerprint, or null before activation. */
-  deviceHash: string | null;
-  /** ISO timestamp of activation, or null before activation. */
-  activationDate: string | null;
+export interface ActivationRecord {
+  /** Peppered hash of the device the code is bound to. */
+  deviceHash: string;
+  /** ISO timestamp of activation. */
+  activationDate: string;
 }
 
-const STORE_PATH = join(process.cwd(), "data", "accessCodes.json");
+const VALID_HASHES = new Set(
+  (codesData as { codeHash: string }[]).map((c) => c.codeHash),
+);
 
-/**
- * Serialize writes within a single server process so two concurrent
- * activations can't clobber each other's changes.
- */
-let writeChain: Promise<void> = Promise.resolve();
+let client: Redis | null = null;
 
-export async function readStore(): Promise<AccessCodeRecord[]> {
-  try {
-    const raw = await readFile(STORE_PATH, "utf8");
-    return JSON.parse(raw) as AccessCodeRecord[];
-  } catch {
-    return [];
+/** Lazily build a Redis client from whichever env var convention is present. */
+function redis(): Redis {
+  if (client) return client;
+  // Vercel's Upstash/KV integration sets KV_REST_API_*, the standalone Upstash
+  // integration sets UPSTASH_REDIS_REST_*. Support both.
+  const url =
+    process.env.UPSTASH_REDIS_REST_URL ?? process.env.KV_REST_API_URL;
+  const token =
+    process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.KV_REST_API_TOKEN;
+  if (!url || !token) {
+    throw new Error(
+      "Missing Redis credentials: set UPSTASH_REDIS_REST_URL/TOKEN (or KV_REST_API_URL/TOKEN).",
+    );
   }
+  client = new Redis({ url, token });
+  return client;
 }
 
-async function writeStore(records: AccessCodeRecord[]): Promise<void> {
-  await writeFile(STORE_PATH, `${JSON.stringify(records, null, 2)}\n`, "utf8");
+const key = (codeHash: string) => `access:${codeHash}`;
+
+/** True when this hash corresponds to one of the generated codes. */
+export function isValidCodeHash(codeHash: string): boolean {
+  return VALID_HASHES.has(codeHash);
 }
 
-export async function findByCodeHash(
+/** Current activation for a code, or null if it hasn't been activated yet. */
+export async function getActivation(
   codeHash: string,
-): Promise<AccessCodeRecord | undefined> {
-  const records = await readStore();
-  return records.find((r) => r.codeHash === codeHash);
+): Promise<ActivationRecord | null> {
+  return (await redis().get<ActivationRecord>(key(codeHash))) ?? null;
+}
+
+export interface ActivateResult {
+  record: ActivationRecord;
+  /** True if THIS call performed the activation (vs. it already existed). */
+  justActivated: boolean;
 }
 
 /**
- * Atomically update the record matching `codeHash` via `mutate`, persisting the
- * whole store. Returns the updated record, or null if not found. Updates are
- * queued so overlapping requests apply on top of each other's writes.
+ * Atomically bind a code to a device on first use. Uses Redis `SET … NX` so two
+ * devices racing on the same fresh code can never both win — exactly one gets
+ * `justActivated: true`; the other reads the existing record and is compared
+ * against it by the caller.
  */
-export function updateRecord(
+export async function activateOrGet(
   codeHash: string,
-  mutate: (record: AccessCodeRecord) => void,
-): Promise<AccessCodeRecord | null> {
-  const run = writeChain.then(async () => {
-    const records = await readStore();
-    const record = records.find((r) => r.codeHash === codeHash);
-    if (!record) return null;
-    mutate(record);
-    await writeStore(records);
-    return record;
-  });
+  deviceHash: string,
+): Promise<ActivateResult> {
+  const record: ActivationRecord = {
+    deviceHash,
+    activationDate: new Date().toISOString(),
+  };
 
-  // Keep the chain alive even if this update rejects.
-  writeChain = run.then(
-    () => undefined,
-    () => undefined,
-  );
-  return run;
+  const res = await redis().set(key(codeHash), record, { nx: true });
+  if (res === "OK") {
+    return { record, justActivated: true };
+  }
+
+  // Someone already activated it — return the stored record for comparison.
+  const existing = await getActivation(codeHash);
+  return {
+    record: existing ?? record,
+    justActivated: false,
+  };
 }

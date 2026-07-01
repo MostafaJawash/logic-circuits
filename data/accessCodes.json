@@ -1,10 +1,10 @@
 [
   {
     "codeHash": "33bbca394ee03c4c71c9a6123e0a0c64a113cb7cd190cd6d44646751d20f42fe",
-    "status": "available",
-    "activated": false,
-    "deviceHash": null,
-    "activationDate": null
+    "status": "used",
+    "activated": true,
+    "deviceHash": "9c18f854595f2793e7cf8878fea88217044d8ac66e9bc57c8db4110d3aab2cee",
+    "activationDate": "2026-07-01T22:13:28.786Z"
   },
   {
     "codeHash": "86212afa98fc780b6a832ffd8777c041085983bfd524d9a0c319a44f32918cde",
