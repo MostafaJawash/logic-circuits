@@ -1,26 +1,205 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ------------------------------------------------------------------ */
+/*  Design tokens — Logic Circuits futuristic dark theme               */
+/* ------------------------------------------------------------------ */
+@theme {
+  /* Colors */
+  --color-background: #09090b;
+  --color-secondary: #111827;
+  --color-card: #1f2937;
+  --color-card-2: #172033;
+  --color-border-soft: #253044;
+
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-accent: #38bdf8;
+
+  --color-foreground: #ffffff;
+  --color-muted: #94a3b8;
+  --color-muted-2: #64748b;
+
+  /* Fonts (wired up in layout.tsx via CSS variables) */
+  --font-sans: var(--font-cairo), system-ui, sans-serif;
+  --font-mono: var(--font-mono-code), ui-monospace, monospace;
+
+  /* Named animations */
+  --animate-float-slow: float 9s ease-in-out infinite;
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-gradient: gradientShift 8s ease infinite;
+  --animate-pulse-soft: pulseSoft 3s ease-in-out infinite;
+  --animate-spin-slow: spin 22s linear infinite;
+  --animate-dash: dash 3s linear infinite;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-18px) rotate(3deg);
   }
 }
 
+@keyframes gradientShift {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes pulseSoft {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+@keyframes dash {
+  to {
+    stroke-dashoffset: -40;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Base                                                               */
+/* ------------------------------------------------------------------ */
+:root {
+  color-scheme: dark;
+}
+
+* {
+  border-color: var(--color-border-soft);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+
+/* Ambient background grid + glow, sits behind everything */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background-image:
+    linear-gradient(to right, rgba(56, 189, 248, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(56, 189, 248, 0.05) 1px, transparent 1px);
+  background-size: 46px 46px;
+  mask-image: radial-gradient(ellipse 100% 70% at 50% 0%, #000 40%, transparent 100%);
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  top: -18%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 900px;
+  height: 900px;
+  max-width: 120vw;
+  z-index: -2;
+  background: radial-gradient(circle, rgba(37, 99, 235, 0.22), transparent 62%);
+  filter: blur(30px);
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Reusable utilities                                                 */
+/* ------------------------------------------------------------------ */
+@layer utilities {
+  .glass {
+    background-color: color-mix(in oklab, var(--color-card) 55%, transparent);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid color-mix(in oklab, var(--color-accent) 12%, transparent);
+  }
+
+  .glass-strong {
+    background-color: color-mix(in oklab, var(--color-secondary) 82%, transparent);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid var(--color-border-soft);
+  }
+
+  .text-gradient {
+    background-image: linear-gradient(
+      110deg,
+      #ffffff 0%,
+      var(--color-accent) 45%,
+      var(--color-primary) 100%
+    );
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: var(--animate-gradient);
+  }
+
+  .glow-primary {
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--color-primary) 30%, transparent),
+      0 18px 50px -12px color-mix(in oklab, var(--color-primary) 55%, transparent);
+  }
+
+  .glow-accent {
+    box-shadow: 0 0 40px -8px color-mix(in oklab, var(--color-accent) 60%, transparent);
+  }
+
+  /* Radial spotlight used on section headers / highlight blocks */
+  .spotlight {
+    background:
+      radial-gradient(600px circle at var(--x, 50%) var(--y, 0%), rgba(56, 189, 248, 0.12), transparent 45%);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Scrollbar                                                          */
+/* ------------------------------------------------------------------ */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-background);
+}
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(var(--color-primary), var(--color-accent));
+  border-radius: 999px;
+  border: 2px solid var(--color-background);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-accent);
+}
+
+::selection {
+  background: color-mix(in oklab, var(--color-accent) 40%, transparent);
+  color: #fff;
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
