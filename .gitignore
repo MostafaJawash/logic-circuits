@@ -33,6 +33,11 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# admin access-code lists contain PLAINTEXT codes — keep them out of the repo.
+# (data/accessCodes.json stores only hashes and IS safe to commit.)
+/access-codes.txt
+/access-codes.csv
+
 # vercel
 .vercel
 
