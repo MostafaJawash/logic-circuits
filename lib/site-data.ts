@@ -47,7 +47,7 @@ export const chapters: Chapter[] = [
     subtitle: "الدارات الرقمية ونظريات الجبر البولياني",
     topics: ["البوابات المنطقية", "نظريات بول", "تبسيط العبارات"],
     icon: "CircuitBoard",
-    status: "coming-soon",
+    status: "available",
   },
   {
     id: 4,
