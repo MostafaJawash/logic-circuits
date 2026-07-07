@@ -57,7 +57,7 @@ export const chapters: Chapter[] = [
     subtitle: "المنطق التركيبي",
     topics: ["SOP", "POS", "خرائط كارنوف"],
     icon: "BrainCircuit",
-    status: "coming-soon",
+    status: "available",
   },
   {
     id: 5,
