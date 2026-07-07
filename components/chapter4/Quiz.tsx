@@ -31,6 +31,7 @@ import {
   type Question,
 } from "@/lib/chapter-4";
 import { fadeUp, zoomIn } from "@/lib/motion";
+import { KMapBoards } from "./KMap";
 
 /* ------------------------------------------------------------------ */
 /*  أدوات مساعدة                                                       */
@@ -237,6 +238,8 @@ export function Quiz() {
           <h3 className="mb-6 text-xl font-bold leading-relaxed text-white sm:text-2xl">
             {q.question}
           </h3>
+
+          {q.kmaps && <KMapBoards maps={q.kmaps} />}
 
           <div className="space-y-3">
             {q.shuffled.map((opt, i) => {
@@ -671,6 +674,8 @@ function Review({
                 </span>
                 <p className="font-bold leading-relaxed text-white">{q.question}</p>
               </div>
+
+              {q.kmaps && <KMapBoards maps={q.kmaps} />}
 
               <div className="space-y-2">
                 {q.shuffled.map((opt, oi) => {
